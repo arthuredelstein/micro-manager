@@ -68,7 +68,7 @@ public class NewImageFlipperControls extends MMFrame {
       prefs_ = getPrefsNode();
 
       initComponents();
-      
+
       selectedCamera_ = prefs_.get(SELECTEDCAMERA, 
               MMStudio.getInstance().getCore().getCameraDevice());
       
@@ -86,9 +86,15 @@ public class NewImageFlipperControls extends MMFrame {
       setBackground(MMStudio.getInstance().getBackgroundColor());
 
       // Update the processor with our current settings.
-      processor_.setRotation(getRotate());
-      processor_.setIsMirrored(getMirror());
-      processor_.setCamera((String) cameraComboBox_.getSelectedItem());
+      try {
+          StrVector cameras = MMStudio.getInstance().getCore().getAllowedPropertyValues("Core", "Camera");
+          for (String camera : cameras) {
+              processor_.setIsMirrored(camera, prefs_.getBoolean(camera + MIRROR, false));
+              processor_.setRotation(camera, getRotate(prefs_.get(camera + ROTATE, R0)));
+          }
+      } catch (Exception ex) {
+          ReportingUtils.logError(ex);
+      }
    }
 
    public DataProcessor<TaggedImage> getProcessor() {
@@ -212,7 +218,7 @@ public class NewImageFlipperControls extends MMFrame {
        if (camera != null) {
           prefs_.putBoolean(camera + MIRROR, mirrorCheckBox_.isSelected());
           if (processor_ != null) {
-             processor_.setIsMirrored(getMirror());
+             processor_.setIsMirrored(camera, getMirror());
           }
        }
     }//GEN-LAST:event_mirrorCheckBox_ActionPerformed
@@ -221,9 +227,10 @@ public class NewImageFlipperControls extends MMFrame {
       processExample();
       String camera = (String) cameraComboBox_.getSelectedItem();
       if (camera != null && rotateComboBox_.getSelectedItem() != null) {
-         prefs_.put(camera + ROTATE, (String) rotateComboBox_.getSelectedItem());
+         String rotateString = (String) rotateComboBox_.getSelectedItem();
+         prefs_.put(camera + ROTATE, rotateString);
          if (processor_ != null) {
-            processor_.setRotation(getRotate());
+            processor_.setRotation(camera, getRotate(rotateString));
          }
       }
    }//GEN-LAST:event_rotateComboBox_ActionPerformed
@@ -231,9 +238,6 @@ public class NewImageFlipperControls extends MMFrame {
    private void cameraComboBox_ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cameraComboBox_ActionPerformed
       String camera = (String) cameraComboBox_.getSelectedItem();
       if (camera != null) {
-         if (processor_ != null) {
-            processor_.setCamera(camera);
-         }
          mirrorCheckBox_.setSelected(prefs_.getBoolean(camera + MIRROR, false));
          rotateComboBox_.setSelectedItem(prefs_.get(camera + ROTATE, R0));
          prefs_.put(SELECTEDCAMERA, camera);
@@ -263,14 +267,14 @@ public class NewImageFlipperControls extends MMFrame {
     * 
     * @return coded rotation
     */
-   public final NewImageFlippingProcessor.Rotation getRotate() {
-      if (R90.equals((String) rotateComboBox_.getSelectedItem())) {
+   public final NewImageFlippingProcessor.Rotation getRotate(String rotationString) {
+      if (R90.equals(rotationString)) {
          return NewImageFlippingProcessor.Rotation.R90;
       }
-      if (R180.equals((String) rotateComboBox_.getSelectedItem())) {
+      if (R180.equals(rotationString)) {
          return NewImageFlippingProcessor.Rotation.R180;
       }
-      if (R270.equals((String) rotateComboBox_.getSelectedItem())) {
+      if (R270.equals(rotationString)) {
          return NewImageFlippingProcessor.Rotation.R270;
       }
       return NewImageFlippingProcessor.Rotation.R0;
@@ -281,19 +285,21 @@ public class NewImageFlipperControls extends MMFrame {
    }
 
    private void processExample() {
-
       ImageIcon exampleIcon = (ImageIcon) exampleImageSource_.getIcon();
-
       ByteProcessor proc = new ByteProcessor(exampleIcon.getImage());
-
 
       try {
          JSONObject newTags = new JSONObject();
          MDUtils.setWidth(newTags, proc.getWidth());
          MDUtils.setHeight(newTags, proc.getHeight());
          MDUtils.setPixelType(newTags, ImagePlus.GRAY8);
+         String camera = (String) cameraComboBox_.getSelectedItem();
+         String rotateString = null;
+         if (camera != null && rotateComboBox_.getSelectedItem() != null) {
+             rotateString = (String) rotateComboBox_.getSelectedItem();
+         }
          TaggedImage result = NewImageFlippingProcessor.proccessTaggedImage(
-                 new TaggedImage(proc.getPixels(), newTags), getMirror(), getRotate() );
+                 new TaggedImage(proc.getPixels(), newTags), getMirror(), getRotate(rotateString));
          exampleImageTarget_.setIcon(
                  new ImageIcon(ImageUtils.makeProcessor(result).createImage()));
       } catch (JSONException ex) {

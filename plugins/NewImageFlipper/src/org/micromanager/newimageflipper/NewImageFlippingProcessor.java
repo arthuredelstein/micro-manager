@@ -22,6 +22,8 @@ package org.micromanager.newimageflipper;
 
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
+import java.util.Hashtable;
+import java.util.Map;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -39,9 +41,8 @@ public class NewImageFlippingProcessor extends DataProcessor<TaggedImage> {
 
       R0, R90, R180, R270
    }
-   String camera_;
-   boolean isMirrored_;
-   Rotation rotation_;
+   Map<String, Boolean> mirrorings_ = new Hashtable<String, Boolean>();
+   Map<String, Rotation> rotations_ = new Hashtable<String, Rotation>();
    NewImageFlipperControls controls_;
 
    /**
@@ -55,21 +56,12 @@ public class NewImageFlippingProcessor extends DataProcessor<TaggedImage> {
          TaggedImage nextImage = poll();
          if (nextImage != TaggedImageQueue.POISON) {
             try {
-               String camera = nextImage.tags.getString("Core-Camera");
-               if (!camera.equals(camera_)) {
-                  if (nextImage.tags.has("Camera")) {
-                     camera = nextImage.tags.getString("Camera");
-                  }
-               }
-               if (!camera.equals(camera_)) {
-                  produce(nextImage);
-                  return;
-
-               }
-
-               produce(proccessTaggedImage(nextImage, isMirrored_,
-                       rotation_));
-
+               String camera = nextImage.tags.has("Camera") ?
+                  nextImage.tags.getString("Camera") :
+                  nextImage.tags.getString("Core-Camera");
+               produce(proccessTaggedImage(nextImage,
+                                           mirrorings_.get(camera),
+                                           rotations_.get(camera)));
             } catch (JSONException ex) {
                produce(TaggedImageQueue.POISON);
                ReportingUtils.logError(ex);
@@ -154,28 +146,21 @@ public class NewImageFlippingProcessor extends DataProcessor<TaggedImage> {
    }
 
    /**
-    * Update which camera is to be processed.
-    * @param camera - Camera name
-    */
-   public void setCamera(String camera) {
-      camera_ = camera;
-   }
-
-
-   /**
     * Update the rotation parameter.
+    * @param camera - the camera to change
     * @param rotation - Rotation (R0, R90, R180, R270)
     */
-   public void setRotation(Rotation rotation) {
-      rotation_ = rotation;
+   public void setRotation(String camera, Rotation rotation) {
+      rotations_.put(camera, rotation);
    }
 
    /**
     * Update the mirroring.
+    * @param camera - the camera to change
     * @param isMirrored - true if image should be mirrored.
     */
-   public void setIsMirrored(boolean isMirrored) {
-      isMirrored_ = isMirrored;
+   public void setIsMirrored(String camera, boolean isMirrored) {
+      mirrorings_.put(camera, isMirrored);
    }
 
    /** 
